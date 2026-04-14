@@ -1,30 +1,70 @@
+import { useReducer } from 'react'
+import type { CSSProperties } from 'react'
 import './App.css'
+import { useFetch } from './hooks/useFetch'
 
-const previewElements = [
-  { atomicNumber: '1', symbol: 'H', name: 'Hydrogen', category: 'nonmetal' },
-  { atomicNumber: '2', symbol: 'He', name: 'Helium', category: 'noble-gas' },
-  {
-    atomicNumber: '26',
-    symbol: 'Fe',
-    name: 'Iron',
-    category: 'transition-metal',
-  },
-  { atomicNumber: '35', symbol: 'Br', name: 'Bromine', category: 'halogen' },
-  {
-    atomicNumber: '79',
-    symbol: 'Au',
-    name: 'Gold',
-    category: 'transition-metal',
-  },
-  {
-    atomicNumber: '92',
-    symbol: 'U',
-    name: 'Uranium',
-    category: 'actinide',
-  },
-]
+const PERIODIC_TABLE_URL =
+  'https://cdn.jsdelivr.net/gh/Bowserinator/Periodic-Table-JSON@master/PeriodicTableJSON.json'
 
-const categoryLegend = [
+const PERIODIC_GRID_STYLE: CSSProperties = {
+  gridTemplateColumns: 'repeat(18, minmax(0, 1fr))',
+}
+
+const HALF_LIFE_BY_SYMBOL: Record<string, string> = {
+  Tc: '~4.2 million years (Tc-98)',
+  Pm: '~17.7 years (Pm-145)',
+  U: '~4.47 billion years (U-238)',
+  Pu: '~24,110 years (Pu-239)',
+  Am: '~432 years (Am-241)',
+  Rn: '~3.8 days (Rn-222)',
+  Fr: '~22 minutes (Fr-223)',
+  Og: '~0.001 seconds',
+}
+
+type PeriodicElement = {
+  atomic_mass: number | string
+  boil: number | null
+  category: string
+  discovered_by: string | null
+  group: number | null
+  melt: number | null
+  name: string
+  number: number
+  period: number
+  phase: string
+  source: string
+  summary: string
+  symbol: string
+  xpos: number
+  ypos: number
+}
+
+type PeriodicTablePayload = {
+  elements: PeriodicElement[]
+}
+
+type LegendCategory =
+  | 'nonmetal'
+  | 'noble-gas'
+  | 'transition-metal'
+  | 'halogen'
+  | 'actinide'
+
+type ExplorerState = {
+  queryInput: string
+  activeQuery: string
+  selectedSymbol: string | null
+}
+
+type ExplorerAction =
+  | { type: 'set-query-input'; value: string }
+  | { type: 'submit-search' }
+  | { type: 'clear-search' }
+  | { type: 'select-element'; symbol: string }
+
+const EMPTY_ELEMENTS: PeriodicElement[] = []
+
+const categoryLegend: Array<{ label: string; category: LegendCategory }> = [
   { label: 'Nonmetal', category: 'nonmetal' },
   { label: 'Noble Gas', category: 'noble-gas' },
   { label: 'Transition Metal', category: 'transition-metal' },
@@ -32,16 +72,153 @@ const categoryLegend = [
   { label: 'Actinide', category: 'actinide' },
 ]
 
+const normalizeText = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+
+const toLegendCategory = (category: string): LegendCategory => {
+  const normalized = category.toLowerCase()
+
+  if (normalized.includes('noble gas')) {
+    return 'noble-gas'
+  }
+
+  if (normalized.includes('halogen')) {
+    return 'halogen'
+  }
+
+  if (normalized.includes('actinide')) {
+    return 'actinide'
+  }
+
+  if (normalized.includes('transition metal')) {
+    return 'transition-metal'
+  }
+
+  return 'nonmetal'
+}
+
+const formatValue = (
+  value: number | string | null | undefined,
+  digits: number,
+): string => {
+  if (typeof value === 'number') {
+    return value.toLocaleString('en-US', { maximumFractionDigits: digits })
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed.toLocaleString('en-US', { maximumFractionDigits: digits })
+    }
+
+    return value
+  }
+
+  return 'unknown'
+}
+
+const withUnit = (
+  value: number | string | null | undefined,
+  unit: string,
+  digits: number,
+): string => {
+  const formatted = formatValue(value, digits)
+  return formatted === 'unknown' ? formatted : `${formatted} ${unit}`
+}
+
+const getHalfLife = (element: PeriodicElement): string => {
+  const known = HALF_LIFE_BY_SYMBOL[element.symbol]
+  if (known) {
+    return known
+  }
+
+  const category = element.category.toLowerCase()
+  if (category.includes('radioactive') || category.includes('actinide')) {
+    return 'Radioactive, depends on isotope.'
+  }
+
+  return 'Stable (half-life not commonly listed).'
+}
+
+const getGroupLabel = (element: PeriodicElement): string => {
+  if (typeof element.group === 'number') {
+    return String(element.group)
+  }
+
+  if (element.ypos === 8) {
+    return 'Lanthanide'
+  }
+
+  if (element.ypos === 9) {
+    return 'Actinide'
+  }
+
+  return 'unknown'
+}
+
+const explorerReducer = (
+  state: ExplorerState,
+  action: ExplorerAction,
+): ExplorerState => {
+  switch (action.type) {
+    case 'set-query-input':
+      return { ...state, queryInput: action.value }
+    case 'submit-search':
+      return { ...state, activeQuery: state.queryInput.trim() }
+    case 'clear-search':
+      return { ...state, queryInput: '', activeQuery: '' }
+    case 'select-element':
+      return { ...state, selectedSymbol: action.symbol }
+    default:
+      return state
+  }
+}
+
 function App() {
+  const [state, dispatch] = useReducer(explorerReducer, {
+    queryInput: '',
+    activeQuery: '',
+    selectedSymbol: null,
+  })
+
+  const { data, loading, error } = useFetch<PeriodicTablePayload>(
+    PERIODIC_TABLE_URL,
+  )
+
+  const elements = data?.elements ?? EMPTY_ELEMENTS
+  const query = normalizeText(state.activeQuery)
+  const filteredElements = elements.filter((element) => {
+    if (query.length === 0) {
+      return true
+    }
+
+    const byName = normalizeText(element.name).includes(query)
+    const bySymbol = normalizeText(element.symbol).includes(query)
+    return byName || bySymbol
+  })
+
+  const selectedElement =
+    filteredElements.find((element) => element.symbol === state.selectedSymbol) ??
+    filteredElements[0] ??
+    null
+
+  const resultNote =
+    query.length > 0
+      ? `Search results: ${filteredElements.length} / ${elements.length}`
+      : `Elements loaded: ${elements.length}`
+
   return (
     <div className="app-shell">
       <header className="app-header">
         <div className="app-header__inner">
-          <p className="eyebrow">Role A | Week 2 UI shell</p>
+          <p className="eyebrow">Role B | Week 2 logic</p>
           <h1>Periodic Table Explorer</h1>
           <p className="lead">
-            Mobile-first kostra aplikace pripravena pro vyhledavani, seznam
-            prvku a detailni informace.
+            Interactive periodic table with search and element detail.
           </p>
         </div>
       </header>
@@ -53,7 +230,13 @@ function App() {
             <h2 id="search-title">Find an element</h2>
           </div>
 
-          <form className="search-form">
+          <form
+            className="search-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              dispatch({ type: 'submit-search' })
+            }}
+          >
             <label className="search-label" htmlFor="element-search">
               Search by name or symbol
             </label>
@@ -62,17 +245,19 @@ function App() {
                 id="element-search"
                 className="search-input"
                 type="search"
+                value={state.queryInput}
                 placeholder="Try H, He or Oxygen"
+                onChange={(event) =>
+                  dispatch({ type: 'set-query-input', value: event.target.value })
+                }
               />
-              <button className="primary-button" type="button">
+              <button className="primary-button" type="submit">
                 Search
               </button>
             </div>
           </form>
 
-          <p className="section-note">
-            Vizualni placeholder pro komponentu vyhledavani od Role B.
-          </p>
+          <p className="section-note">{resultNote}</p>
         </section>
 
         <div className="content-layout">
@@ -82,19 +267,31 @@ function App() {
           >
             <div className="section-heading">
               <p className="section-kicker">Explorer</p>
-              <h2 id="elements-title">Element preview</h2>
+              <h2 id="elements-title">Periodic table</h2>
             </div>
 
-            <div className="element-grid">
-              {previewElements.map((element) => (
+            <div
+              className="element-grid"
+              style={query.length === 0 ? PERIODIC_GRID_STYLE : undefined}
+            >
+              {filteredElements.map((element) => (
                 <button
-                  key={element.atomicNumber}
-                  className={`element-card element-card--${element.category}`}
+                  key={element.number}
+                  className={`element-card element-card--${toLegendCategory(element.category)}`}
                   type="button"
+                  style={
+                    query.length === 0
+                      ? {
+                          gridColumn: element.xpos,
+                          gridRow: element.ypos,
+                        }
+                      : undefined
+                  }
+                  onClick={() =>
+                    dispatch({ type: 'select-element', symbol: element.symbol })
+                  }
                 >
-                  <span className="element-card__number">
-                    {element.atomicNumber}
-                  </span>
+                  <span className="element-card__number">{element.number}</span>
                   <span className="element-card__symbol">{element.symbol}</span>
                   <span className="element-card__name">{element.name}</span>
                 </button>
@@ -119,45 +316,67 @@ function App() {
               <h2 id="detail-title">Selected element</h2>
             </div>
 
-            <article className="detail-card">
-              <div className="detail-card__hero">
-                <p className="detail-card__label">Atomic number</p>
-                <div className="detail-card__symbol-block">
-                  <strong>1</strong>
-                  <span>H</span>
+            {selectedElement ? (
+              <article className="detail-card">
+                <div className="detail-card__hero">
+                  <p className="detail-card__label">Atomic number</p>
+                  <div className="detail-card__symbol-block">
+                    <strong>{selectedElement.number}</strong>
+                    <span>{selectedElement.symbol}</span>
+                  </div>
+                  <h3>{selectedElement.name}</h3>
+                  <p className="detail-card__category">{selectedElement.category}</p>
                 </div>
-                <h3>Hydrogen</h3>
-                <p className="detail-card__category">Nonmetal</p>
-              </div>
 
-              <dl className="detail-list">
-                <div>
-                  <dt>Atomic mass</dt>
-                  <dd>1.008 u</dd>
-                </div>
-                <div>
-                  <dt>Group</dt>
-                  <dd>1</dd>
-                </div>
-                <div>
-                  <dt>Period</dt>
-                  <dd>1</dd>
-                </div>
-                <div>
-                  <dt>State</dt>
-                  <dd>Gas</dd>
-                </div>
-              </dl>
+                <dl className="detail-list">
+                  <div>
+                    <dt>Atomic mass</dt>
+                    <dd>{formatValue(selectedElement.atomic_mass, 4)}</dd>
+                  </div>
+                  <div>
+                    <dt>Group</dt>
+                    <dd>{getGroupLabel(selectedElement)}</dd>
+                  </div>
+                  <div>
+                    <dt>Period</dt>
+                    <dd>{selectedElement.period}</dd>
+                  </div>
+                  <div>
+                    <dt>State</dt>
+                    <dd>{selectedElement.phase}</dd>
+                  </div>
+                  <div>
+                    <dt>Melting point</dt>
+                    <dd>{withUnit(selectedElement.melt, 'K', 2)}</dd>
+                  </div>
+                  <div>
+                    <dt>Boiling point</dt>
+                    <dd>{withUnit(selectedElement.boil, 'K', 2)}</dd>
+                  </div>
+                  <div>
+                    <dt>Half-life</dt>
+                    <dd>{getHalfLife(selectedElement)}</dd>
+                  </div>
+                  <div>
+                    <dt>Discovered by</dt>
+                    <dd>{selectedElement.discovered_by ?? 'unknown'}</dd>
+                  </div>
+                </dl>
 
-              <div className="detail-actions">
-                <button className="secondary-button" type="button">
-                  Open modal
-                </button>
-                <button className="ghost-button" type="button">
-                  Save element
-                </button>
-              </div>
-            </article>
+                <div className="detail-actions">
+                  <button className="secondary-button" type="button">
+                    Open modal
+                  </button>
+                  <button className="ghost-button" type="button">
+                    Save element
+                  </button>
+                </div>
+              </article>
+            ) : (
+              <article className="detail-card">
+                <p>No element selected.</p>
+              </article>
+            )}
           </aside>
         </div>
 
@@ -165,28 +384,32 @@ function App() {
           <article className="status-card status-card--loading">
             <p className="status-card__title">Loading state</p>
             <p className="status-card__text">
-              Placeholder pro nacitani dat periodicke tabulky.
+              {loading
+                ? 'Periodic table is loading.'
+                : 'Periodic table loaded successfully.'}
             </p>
           </article>
 
           <article className="status-card status-card--error">
             <p className="status-card__title">Error state</p>
             <p className="status-card__text">
-              Prostor pro chybovou hlasku a retry tlacitko.
+              {error ?? 'No loading error detected.'}
             </p>
           </article>
 
           <article className="status-card status-card--success">
             <p className="status-card__title">Success state</p>
             <p className="status-card__text">
-              Ukazka pozitivni zpetne vazby po akci uzivatele.
+              {selectedElement
+                ? `${selectedElement.name} selected.`
+                : 'Select any element from the table.'}
             </p>
           </article>
         </section>
       </main>
 
       <footer className="app-footer">
-        <p>Role A pripravil architekturu UI, styly a interaktivni stavy.</p>
+        <p>Logic implementation with useFetch + useReducer.</p>
       </footer>
     </div>
   )
