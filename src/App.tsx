@@ -1,7 +1,8 @@
-import { useReducer } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import type { CSSProperties } from 'react'
 import './App.css'
 import { useFetch } from './hooks/useFetch'
+import { useLocalStorage } from './hooks/useLocalStorage'
 
 const PERIODIC_TABLE_URL =
   'https://cdn.jsdelivr.net/gh/Bowserinator/Periodic-Table-JSON@master/PeriodicTableJSON.json'
@@ -179,12 +180,21 @@ const explorerReducer = (
 }
 
 function App() {
-  const [state, dispatch] = useReducer(explorerReducer, {
-    queryInput: '',
-    activeQuery: '',
-    selectedSymbol: null,
-  })
+  const [persistedState, setPersistedState] = useLocalStorage<ExplorerState>(
+    'periodic-table:explorer-state',
+    {
+      queryInput: '',
+      activeQuery: '',
+      selectedSymbol: null,
+    },
+  )
+  const [savedSymbols, setSavedSymbols] = useLocalStorage<string[]>(
+    'periodic-table:saved-elements',
+    [],
+  )
+  const [showSummary, setShowSummary] = useState(false)
 
+  const [state, dispatch] = useReducer(explorerReducer, persistedState)
   const { data, loading, error } = useFetch<PeriodicTablePayload>(
     PERIODIC_TABLE_URL,
   )
@@ -205,6 +215,34 @@ function App() {
     filteredElements.find((element) => element.symbol === state.selectedSymbol) ??
     filteredElements[0] ??
     null
+  const isSaved = selectedElement
+    ? savedSymbols.includes(selectedElement.symbol)
+    : false
+
+  useEffect(() => {
+    setPersistedState(state)
+  }, [setPersistedState, state])
+
+  useEffect(() => {
+    if (selectedElement && selectedElement.symbol !== state.selectedSymbol) {
+      dispatch({ type: 'select-element', symbol: selectedElement.symbol })
+    }
+  }, [selectedElement, state.selectedSymbol])
+
+  const handleToggleSavedElement = (): void => {
+    if (!selectedElement) {
+      return
+    }
+
+    const symbol = selectedElement.symbol
+    setSavedSymbols((previous) => {
+      if (previous.includes(symbol)) {
+        return previous.filter((savedSymbol) => savedSymbol !== symbol)
+      }
+
+      return [...previous, symbol]
+    })
+  }
 
   const resultNote =
     query.length > 0
@@ -253,6 +291,13 @@ function App() {
               />
               <button className="primary-button" type="submit">
                 Search
+              </button>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => dispatch({ type: 'clear-search' })}
+              >
+                Clear
               </button>
             </div>
           </form>
@@ -364,13 +409,29 @@ function App() {
                 </dl>
 
                 <div className="detail-actions">
-                  <button className="secondary-button" type="button">
-                    Open modal
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setShowSummary((previous) => !previous)}
+                  >
+                    {showSummary ? 'Hide summary' : 'Open modal'}
                   </button>
-                  <button className="ghost-button" type="button">
-                    Save element
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={handleToggleSavedElement}
+                  >
+                    {isSaved ? 'Unsave element' : 'Save element'}
                   </button>
                 </div>
+
+                {showSummary ? (
+                  <p className="section-note">{selectedElement.summary}</p>
+                ) : null}
+
+                <a href={selectedElement.source} target="_blank" rel="noreferrer">
+                  Source
+                </a>
               </article>
             ) : (
               <article className="detail-card">
@@ -401,15 +462,15 @@ function App() {
             <p className="status-card__title">Success state</p>
             <p className="status-card__text">
               {selectedElement
-                ? `${selectedElement.name} selected.`
-                : 'Select any element from the table.'}
+                ? `${selectedElement.name} selected. Saved: ${savedSymbols.length}`
+                : `Saved elements: ${savedSymbols.length}`}
             </p>
           </article>
         </section>
       </main>
 
       <footer className="app-footer">
-        <p>Logic implementation with useFetch + useReducer.</p>
+        <p>Logic implementation with useFetch + useReducer + useLocalStorage.</p>
       </footer>
     </div>
   )
