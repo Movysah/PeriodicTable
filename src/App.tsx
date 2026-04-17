@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import type { CSSProperties } from 'react'
 import './App.css'
 import { useFetch } from './hooks/useFetch'
@@ -78,6 +78,24 @@ const normalizeText = (value: string): string =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
     .trim()
+
+const getSearchValidationMessage = (value: string): string | null => {
+  const trimmed = value.trim()
+
+  if (trimmed.length === 0) {
+    return null
+  }
+
+  if (trimmed.length > 60) {
+    return 'Search query is too long.'
+  }
+
+  if (!/[a-z0-9]/i.test(trimmed)) {
+    return 'Search must contain at least one letter or number.'
+  }
+
+  return null
+}
 
 const toLegendCategory = (category: string): LegendCategory => {
   const normalized = category.toLowerCase()
@@ -195,6 +213,9 @@ function App() {
     'periodic-table:show-summary',
     false,
   )
+  const [searchValidationError, setSearchValidationError] = useState<
+    string | null
+  >(null)
 
   const [state, dispatch] = useReducer(explorerReducer, persistedState)
   const { data, loading, error, refetch } = useFetch<PeriodicTablePayload>(
@@ -220,6 +241,13 @@ function App() {
   const isSaved = selectedElement
     ? savedSymbols.includes(selectedElement.symbol)
     : false
+  const hasEmptyDataset = !loading && !error && elements.length === 0
+  const hasNoSearchMatches =
+    !loading &&
+    !error &&
+    elements.length > 0 &&
+    query.length > 0 &&
+    filteredElements.length === 0
 
   useEffect(() => {
     setPersistedState(state)
@@ -260,7 +288,9 @@ function App() {
   }
 
   const resultNote =
-    query.length > 0
+    hasEmptyDataset
+      ? 'Local data file loaded, but it contains zero elements.'
+      : query.length > 0
       ? `Search results: ${filteredElements.length} / ${elements.length}`
       : `Elements loaded: ${elements.length}`
 
@@ -287,6 +317,15 @@ function App() {
             className="search-form"
             onSubmit={(event) => {
               event.preventDefault()
+              const validationMessage = getSearchValidationMessage(
+                state.queryInput,
+              )
+              if (validationMessage) {
+                setSearchValidationError(validationMessage)
+                return
+              }
+
+              setSearchValidationError(null)
               dispatch({ type: 'submit-search' })
             }}
           >
@@ -301,7 +340,15 @@ function App() {
                 value={state.queryInput}
                 placeholder="Try H, He or Oxygen"
                 onChange={(event) =>
-                  dispatch({ type: 'set-query-input', value: event.target.value })
+                  {
+                    if (searchValidationError) {
+                      setSearchValidationError(null)
+                    }
+                    dispatch({
+                      type: 'set-query-input',
+                      value: event.target.value,
+                    })
+                  }
                 }
               />
               <button className="primary-button" type="submit">
@@ -310,7 +357,10 @@ function App() {
               <button
                 className="ghost-button"
                 type="button"
-                onClick={() => dispatch({ type: 'clear-search' })}
+                onClick={() => {
+                  setSearchValidationError(null)
+                  dispatch({ type: 'clear-search' })
+                }}
               >
                 Clear
               </button>
@@ -318,6 +368,9 @@ function App() {
           </form>
 
           <p className="section-note">{resultNote}</p>
+          {searchValidationError ? (
+            <p className="section-note">{searchValidationError}</p>
+          ) : null}
         </section>
 
         <div className="content-layout">
@@ -330,44 +383,60 @@ function App() {
               <h2 id="elements-title">Periodic table</h2>
             </div>
 
-            <div
-              className="element-grid"
-              style={query.length === 0 ? PERIODIC_GRID_STYLE : undefined}
-            >
-              {filteredElements.map((element) => (
-                <button
-                  key={element.number}
-                  className={`element-card element-card--${toLegendCategory(element.category)}`}
-                  type="button"
-                  style={
-                    query.length === 0
-                      ? {
-                          gridColumn: element.xpos,
-                          gridRow: element.ypos,
-                        }
-                      : undefined
-                  }
-                  onClick={() =>
-                    dispatch({ type: 'select-element', symbol: element.symbol })
-                  }
-                >
-                  <span className="element-card__number">{element.number}</span>
-                  <span className="element-card__symbol">{element.symbol}</span>
-                  <span className="element-card__name">{element.name}</span>
-                </button>
-              ))}
-            </div>
+            {hasEmptyDataset ? (
+              <p className="section-note">
+                No elements to display. Check `public/data/periodicElements.json`.
+              </p>
+            ) : null}
 
-            <div className="legend" aria-label="Element categories">
-              {categoryLegend.map((item) => (
-                <span
-                  key={item.label}
-                  className={`legend-chip legend-chip--${item.category}`}
-                >
-                  {item.label}
-                </span>
-              ))}
-            </div>
+            {hasNoSearchMatches ? (
+              <p className="section-note">
+                No elements match the current search query.
+              </p>
+            ) : null}
+
+            {!hasEmptyDataset && !hasNoSearchMatches ? (
+              <div
+                className="element-grid"
+                style={query.length === 0 ? PERIODIC_GRID_STYLE : undefined}
+              >
+                {filteredElements.map((element) => (
+                  <button
+                    key={element.number}
+                    className={`element-card element-card--${toLegendCategory(element.category)}`}
+                    type="button"
+                    style={
+                      query.length === 0
+                        ? {
+                            gridColumn: element.xpos,
+                            gridRow: element.ypos,
+                          }
+                        : undefined
+                    }
+                    onClick={() =>
+                      dispatch({ type: 'select-element', symbol: element.symbol })
+                    }
+                  >
+                    <span className="element-card__number">{element.number}</span>
+                    <span className="element-card__symbol">{element.symbol}</span>
+                    <span className="element-card__name">{element.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {!hasEmptyDataset ? (
+              <div className="legend" aria-label="Element categories">
+                {categoryLegend.map((item) => (
+                  <span
+                    key={item.label}
+                    className={`legend-chip legend-chip--${item.category}`}
+                  >
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           <aside className="panel detail-panel" aria-labelledby="detail-title">
@@ -450,7 +519,13 @@ function App() {
               </article>
             ) : (
               <article className="detail-card">
-                <p>No element selected.</p>
+                {hasEmptyDataset ? (
+                  <p>No element details are available because the dataset is empty.</p>
+                ) : hasNoSearchMatches ? (
+                  <p>No details available for the current search query.</p>
+                ) : (
+                  <p>No element selected.</p>
+                )}
               </article>
             )}
           </aside>
@@ -462,7 +537,9 @@ function App() {
             <p className="status-card__text">
               {loading
                 ? 'Periodic table is loading.'
-                : 'Periodic table loaded successfully.'}
+                : hasEmptyDataset
+                  ? 'Periodic table loaded, but the dataset is empty.'
+                  : 'Periodic table loaded successfully.'}
             </p>
           </article>
 
@@ -481,9 +558,13 @@ function App() {
           <article className="status-card status-card--success">
             <p className="status-card__title">Success state</p>
             <p className="status-card__text">
-              {selectedElement
-                ? `${selectedElement.name} selected. Saved: ${savedSymbols.length}`
-                : `Saved elements: ${savedSymbols.length}`}
+              {hasEmptyDataset
+                ? 'App is ready, but no elements are available.'
+                : hasNoSearchMatches
+                  ? `No matches found. Saved elements: ${savedSymbols.length}`
+                  : selectedElement
+                    ? `${selectedElement.name} selected. Saved: ${savedSymbols.length}`
+                    : `Saved elements: ${savedSymbols.length}`}
             </p>
           </article>
         </section>
