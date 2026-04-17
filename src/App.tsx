@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer } from 'react'
 import type { CSSProperties } from 'react'
 import './App.css'
 import { useFetch } from './hooks/useFetch'
@@ -191,7 +191,10 @@ function App() {
     'periodic-table:saved-elements',
     [],
   )
-  const [showSummary, setShowSummary] = useState(false)
+  const [showSummary, setShowSummary] = useLocalStorage(
+    'periodic-table:show-summary',
+    false,
+  )
 
   const [state, dispatch] = useReducer(explorerReducer, persistedState)
   const { data, loading, error } = useFetch<PeriodicTablePayload>(
@@ -223,10 +226,23 @@ function App() {
   }, [setPersistedState, state])
 
   useEffect(() => {
-    if (selectedElement && selectedElement.symbol !== state.selectedSymbol) {
-      dispatch({ type: 'select-element', symbol: selectedElement.symbol })
+    if (loading || error || elements.length === 0) {
+      return
     }
-  }, [selectedElement, state.selectedSymbol])
+
+    const selectedSymbolExists = state.selectedSymbol
+      ? elements.some((element) => element.symbol === state.selectedSymbol)
+      : false
+
+    if (selectedSymbolExists) {
+      return
+    }
+
+    const fallbackElement = filteredElements[0] ?? elements[0] ?? null
+    if (fallbackElement && fallbackElement.symbol !== state.selectedSymbol) {
+      dispatch({ type: 'select-element', symbol: fallbackElement.symbol })
+    }
+  }, [elements, error, filteredElements, loading, state.selectedSymbol])
 
   const handleToggleSavedElement = (): void => {
     if (!selectedElement) {
