@@ -4,12 +4,14 @@ type FetchState<T> = {
   data: T | null
   loading: boolean
   error: string | null
+  refetch: () => void
 }
 
 export function useFetch<T>(url: string): FetchState<T> {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [requestId, setRequestId] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -47,7 +49,11 @@ export function useFetch<T>(url: string): FetchState<T> {
     return () => {
       controller.abort()
     }
-  }, [url])
+  }, [requestId, url])
 
-  return { data, loading, error }
+  const refetch = (): void => {
+    setRequestId((previous) => previous + 1)
+  }
+
+  return { data, loading, error, refetch }
 }

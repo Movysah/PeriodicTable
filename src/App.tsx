@@ -197,7 +197,7 @@ function App() {
   )
 
   const [state, dispatch] = useReducer(explorerReducer, persistedState)
-  const { data, loading, error } = useFetch<PeriodicTablePayload>(
+  const { data, loading, error, refetch } = useFetch<PeriodicTablePayload>(
     PERIODIC_TABLE_URL,
   )
 
@@ -471,6 +471,11 @@ function App() {
             <p className="status-card__text">
               {error ?? 'No loading error detected.'}
             </p>
+            {error ? (
+              <button className="ghost-button" type="button" onClick={refetch}>
+                Retry loading data
+              </button>
+            ) : null}
           </article>
 
           <article className="status-card status-card--success">
