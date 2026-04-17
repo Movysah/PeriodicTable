@@ -4,8 +4,7 @@ import './App.css'
 import { useFetch } from './hooks/useFetch'
 import { useLocalStorage } from './hooks/useLocalStorage'
 
-const PERIODIC_TABLE_URL =
-  'https://cdn.jsdelivr.net/gh/Bowserinator/Periodic-Table-JSON@master/PeriodicTableJSON.json'
+const PERIODIC_TABLE_URL = '/data/periodicElements.json'
 
 const PERIODIC_GRID_STYLE: CSSProperties = {
   gridTemplateColumns: 'repeat(18, minmax(0, 1fr))',
