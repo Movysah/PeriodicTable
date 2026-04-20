@@ -8,7 +8,6 @@ export const LOADING_COLOR = '#3B82F6'
 export const ERROR_COLOR = '#DC2626'
 export const SUCCESS_COLOR = '#16A34A'
 
-// Element category colors
 export const ALKALI_METAL = '#EF4444'
 export const ALKALINE_EARTH = '#F97316'
 export const TRANSITION_METAL = '#F59E0B'
