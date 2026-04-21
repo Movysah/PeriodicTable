@@ -372,6 +372,20 @@ function App() {
       return
     }
 
+    const { documentElement, body } = document
+    const previousHtmlOverflow = documentElement.style.overflow
+    const previousBodyOverflow = body.style.overflow
+    const previousBodyPaddingRight = body.style.paddingRight
+    const scrollbarWidth =
+      window.innerWidth - documentElement.clientWidth
+
+    documentElement.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`
+    }
+
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setIsDetailOpen(false)
@@ -380,6 +394,9 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => {
+      documentElement.style.overflow = previousHtmlOverflow
+      body.style.overflow = previousBodyOverflow
+      body.style.paddingRight = previousBodyPaddingRight
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isDetailOpen])
