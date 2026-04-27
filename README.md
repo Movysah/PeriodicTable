@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# Periodic Table Explorer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interactive React + TypeScript periodic table with search, element detail cards,
+local persistence, installable PWA metadata, and offline support.
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev
+npm run lint
+npm run build
+npm run serve:dist
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+`npm run build` compiles the app with Vite and then generates a production
+service worker containing the exact hashed bundle files from `dist/`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## PWA behavior
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Relative asset paths work from the site root or a project-page subdirectory.
+- The web manifest declares install metadata, scope, icons, theme color, and
+  standalone display.
+- The service worker precaches the app shell, generated JS/CSS bundle, icons,
+  manifest, and element dataset.
+- Navigations use a network-first strategy with an offline app-shell fallback.
+- Static assets use cache-first loading after the precache is installed.
+
+## Install on a phone
+
+The app must be served from HTTPS before a phone can install it. This repo
+includes a GitHub Pages workflow that builds and deploys the PWA from the
+`finalizce` branch.
+
+1. Push this branch to GitHub.
+2. In the repository settings, set Pages source to GitHub Actions.
+3. Open the deployed URL on your phone.
+4. Android Chrome or Edge: tap the browser menu and choose **Install app**.
+5. iPhone Safari: tap Share, then **Add to Home Screen**.
+
+For this repository, the GitHub Pages URL is expected to be:
+
+```text
+https://movysah.github.io/PeriodicTable/
 ```
+
+## Test from a phone on local Wi-Fi
+
+`127.0.0.1` only points to the current device. On a phone, it points to the
+phone, not the computer running Vite.
+
+To open the local preview from your phone:
+
+1. Run `npm run build`.
+2. Run `npm run serve:dist`.
+3. Find your computer's local IPv4 address with `ipconfig`.
+4. Open `http://YOUR_COMPUTER_IP:4173/` on the phone.
+
+Example:
+
+```text
+http://192.168.100.108:4173/
+```
+
+If the phone cannot connect, make sure both devices are on the same Wi-Fi and
+allow Node.js through Windows Firewall.

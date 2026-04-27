@@ -19,7 +19,7 @@ import {
   TRANSITION_METAL,
 } from './theme'
 
-const PERIODIC_TABLE_URL = '/data/periodicElements.json'
+const PERIODIC_TABLE_URL = `${import.meta.env.BASE_URL}data/periodicElements.json`
 
 const PERIODIC_GRID_STYLE: CSSProperties = {
   gridTemplateColumns:

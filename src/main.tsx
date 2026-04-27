@@ -11,8 +11,15 @@ createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {
-      // Registration can fail in unsupported preview environments.
-    })
+    const serviceWorkerUrl = new URL(
+      `${import.meta.env.BASE_URL}service-worker.js`,
+      window.location.href,
+    )
+
+    navigator.serviceWorker
+      .register(serviceWorkerUrl, { scope: import.meta.env.BASE_URL })
+      .catch(() => {
+        // Registration can fail in unsupported preview environments.
+      })
   })
 }

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 
 const port = Number(process.env.PORT ?? '4173')
+const host = process.env.HOST ?? '0.0.0.0'
 const root = join(process.cwd(), 'dist')
 
 const contentTypes = {
@@ -49,6 +50,6 @@ const server = createServer(async (request, response) => {
   }
 })
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Static preview running at http://127.0.0.1:${port}`)
+server.listen(port, host, () => {
+  console.log(`Static preview running at http://${host}:${port}`)
 })
